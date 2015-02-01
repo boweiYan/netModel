@@ -46,7 +46,7 @@ if __name__=='__main__':
     (alpha, beta, gamma, phi,loglik)=lda_bowei.lda(w,K,V,thres)
 
     niter=len(loglik)
-    plt.plot(np.arange(niter),loglik)
+    plt.plot(np.arange(niter-1),loglik[1:])
     plt.show()
     print "estimations: alpha beta gamma phi"
     print alpha

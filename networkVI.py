@@ -71,28 +71,34 @@ def newton_raphson(alpha,gamma,w,K,stepsize,thres):
 
     return alpha_new
 
-def getloglik(alpha, beta, gamma, phi, w, V):
-    M = w.shape[0]
-    N = w.shape[1]
-    K = alpha.shape[0]
-    loglik = 0
-    for d in range(M):
-        loglik += math.log(scipy.special.gamma(np.sum(alpha)))
+def getloglik(alpha, tau, gamma, eta, phi, sender, receiver):
+    D = alpha.shape[0]
+    N = phi.shape[0]
+    K = tau.shape[0]
+    loglik = np.log(scipy.special.gamma(np.sum(alpha)))-np.sum(np.log(scipy.special.gamma(alpha)))
+    for d in range(D):
+        loglik += (alpha[d]-1)*(scipy.special.digamma(gamma[d])-scipy.special.digamma(np.sum(gamma)))
+        for n in range(N):
+            loglik += phi[n,d]*(scipy.special.digamma(gamma[d])-scipy.special.digamma(np.sum(gamma)))
+            for j in range(K):
+                for l in range(K):
+                    loglik += phi[n,d]*(sender[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(np.sum(eta[d,:])))+receiver[n,l]*(scipy.special.digamma(eta[d,l])-scipy.special.digamma(np.sum(eta[d,:]))))
+        loglik += np.sum(np.log(scipy.special.gamma(tau)))-np.sum(np.log(scipy.special.gamma(tau)))
         for i in range(K):
-            loglik += (alpha[i]-1)*(scipy.special.digamma(gamma[i,d])-scipy.special.digamma(np.sum(gamma[:,d])))-math.log(scipy.special.gamma(alpha[i]))
-            for n in range(N):
-                loglik += phi[n,i,d]*(scipy.special.digamma(gamma[i,d])-scipy.special.digamma(np.sum(gamma[:,d])))
-                for j in range(V):
-                    loglik += phi[n,i,d]*(w[d,n]==j)*beta[i,j]
-        loglik += -math.log(scipy.special.gamma(np.sum(gamma[:,d])))
+            loglik += (tau[i]-1)*(scipy.special.digamma(eta[d,i])-scipy.special.digamma(np.sum(eta[d,:])))
+
+    loglik -= np.log(scipy.special.gamma(np.sum(gamma)))-np.sum(np.log(scipy.special.gamma(gamma)))
+    for d in range(D):
+        loglik -= (gamma[d]-1)*(scipy.special.digamma(gamma[d])-scipy.special.digamma(np.sum(gamma)))
+        loglik -= np.log(scipy.special.gamma(np.sum(eta[d,:])))-np.sum(np.log(scipy.special.gamma(eta[d,:])))
         for i in range(K):
-            loglik -= (gamma[i,d]-1)*(scipy.special.digamma(gamma[i,d])-scipy.special.digamma(np.sum(gamma[:,d])))-math.log(scipy.special.gamma(gamma[i,d]))
-            for n in range(N):
-                loglik -= phi[n,i,d]*math.log(phi[n,i,d])
+            loglik -= (eta[d,i]-1)*(scipy.special.digamma(eta[d,i])-scipy.special.digamma(np.sum(eta[d,:])))
+        for n in range(N):
+            loglik -= phi[n,d]*np.log(phi[n,d])
 
     return loglik
 
-def lda(w,K,V,thres):
+def network_sym_VI(w,K,V,thres):
     # w: word data, numpy array with size M*N; M is No. of documents and N is No. of words in each documents
     # K: No. of topics
     # V: Vocabulary
