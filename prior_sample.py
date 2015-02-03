@@ -164,7 +164,8 @@ def full_sym(N, gamma, tau, alpha):
     for n in range(N):
         #sample link cluster
         try:
-            lc = np.random.choice(link_mk.keys(),1,p=link_mk.values()/sum(link_mk.values()))[0]
+            ptemp = np.array(link_mk.values())+0.
+            lc = np.random.choice(link_mk.keys(),1,p=ptemp/sum(ptemp))[0]
         except ValueError:
             pdb.set_trace()
         if lc==-1:
@@ -176,13 +177,15 @@ def full_sym(N, gamma, tau, alpha):
         link_mk[lc] = link_mk.get(lc,0)+1
         #sample sender
         try:
-            sender_table = np.random.choice(customer_mk[lc].keys(), 1, p=customer_mk[lc].values()/sum(customer_mk[lc].values()))[0]
+            ptemp = np.array(customer_mk[lc].values())+0.
+            sender_table = np.random.choice(customer_mk[lc].keys(), 1, p = ptemp/sum(ptemp))[0]
         except TypeError:
             pdb.set_trace()
         if sender_table==-1:
             #add table
             sender_table = max(customer_mk[lc].keys())+1
-            dish = np.random.choice(table_mk.keys(), 1, p=table_mk.values()/sum(table_mk.values()))[0]
+            ptemp = np.array(table_mk.values())+0.
+            dish = np.random.choice(table_mk.keys(), 1, p=ptemp/sum(ptemp))[0]
             if dish==-1:
                 #add customer
                 dish = max(table_mk.keys())+1
@@ -195,11 +198,16 @@ def full_sym(N, gamma, tau, alpha):
         sender = table_to_dish[lc][sender_table]
 
         #sample receiver
-        receiver_table = np.random.choice(customer_mk[lc].keys(), 1, p=customer_mk[lc].values()/sum(customer_mk[lc].values()))[0]
+        #print customer_mk[lc].values()
+        #print sum(customer_mk[lc].values())
+        #print customer_mk[lc].values()/sum(customer_mk[lc].values())
+        ptemp = np.array(customer_mk[lc].values())+0.
+        receiver_table = np.random.choice(customer_mk[lc].keys(), 1, p = ptemp/sum(ptemp) )[0]
         if receiver_table==-1:
             #add table
             receiver_table = max(customer_mk[lc].keys())+1
-            dish = np.random.choice(table_mk.keys(), 1, p=table_mk.values()/sum(table_mk.values()))[0]
+            ptemp = np.array(table_mk.values())+0.
+            dish = np.random.choice(table_mk.keys(), 1, p=ptemp/sum(ptemp))[0]
             if dish==-1:
                 #add customer
                 dish = max(table_mk.keys())+1

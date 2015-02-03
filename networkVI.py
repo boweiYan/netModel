@@ -83,23 +83,27 @@ def getloglik(alpha, tau, gamma, eta, phi, sender, receiver):
     D = alpha.shape[0]
     N = phi.shape[0]
     K = tau.shape[0]
-    loglik = np.log(scipy.special.gamma(np.sum(alpha)))-np.sum(np.log(scipy.special.gamma(alpha)))
+    eps = 1e-50
+    loglik = np.log(scipy.special.gamma(np.sum(alpha))+eps)-np.sum(np.log(scipy.special.gamma(alpha)))
     for d in range(D):
-        loglik += (alpha[d]-1)*(scipy.special.digamma(gamma[d])-scipy.special.digamma(np.sum(gamma)))
+        loglik += (alpha[d]-1)*(scipy.special.digamma(gamma[d]+eps)-scipy.special.digamma(np.sum(gamma)))
         for n in range(N):
-            loglik += phi[n,d]*(scipy.special.digamma(gamma[d])-scipy.special.digamma(np.sum(gamma)))
+            loglik += phi[n,d]*(scipy.special.digamma(gamma[d]+eps)-scipy.special.digamma(np.sum(gamma)))
             for j in range(K):
                 for l in range(K):
-                    loglik += phi[n,d]*(sender[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(np.sum(eta[d,:])))+receiver[n,l]*(scipy.special.digamma(eta[d,l])-scipy.special.digamma(np.sum(eta[d,:]))))
-        loglik += np.sum(np.log(scipy.special.gamma(tau)))-np.sum(np.log(scipy.special.gamma(tau)))
+                    loglik += phi[n,d]*(sender[n,j]*(scipy.special.digamma(eta[d,j]+eps)-scipy.special.digamma(np.sum(eta[d,:])+eps))+receiver[n,l]*(scipy.special.digamma(eta[d,l]+eps)-scipy.special.digamma(np.sum(eta[d,:])+eps)))
+        loglik += np.log(scipy.special.gamma(np.sum(tau)+eps))
         for i in range(K):
-            loglik += (tau[i]-1)*(scipy.special.digamma(eta[d,i])-scipy.special.digamma(np.sum(eta[d,:])))
+            loglik -= np.log(scipy.special.gamma(tau[i]+eps))
+            loglik += (tau[i]-1)*(scipy.special.digamma(eta[d,i]+eps)-scipy.special.digamma(np.sum(eta[d,:])))
 
-    loglik -= np.log(scipy.special.gamma(np.sum(gamma)))-np.sum(np.log(scipy.special.gamma(gamma)))
+    loglik -= np.log(scipy.special.gamma(np.sum(gamma)))
     for d in range(D):
+        loglik += np.log(scipy.special.gamma(gamma[d]+eps))
         loglik -= (gamma[d]-1)*(scipy.special.digamma(gamma[d])-scipy.special.digamma(np.sum(gamma)))
-        loglik -= np.log(scipy.special.gamma(np.sum(eta[d,:])))-np.sum(np.log(scipy.special.gamma(eta[d,:])))
+        loglik -= np.log(scipy.special.gamma(np.sum(eta[d,:])+eps))
         for i in range(K):
+            loglik += np.log(scipy.special.gamma(eta[d,i]+eps))
             loglik -= (eta[d,i]-1)*(scipy.special.digamma(eta[d,i])-scipy.special.digamma(np.sum(eta[d,:])))
         for n in range(N):
             loglik -= phi[n,d]*np.log(phi[n,d])
@@ -133,16 +137,17 @@ def network_sym_VI(sender, receiver, D, thres):
     while abs(loglik-loglik_old[-1]) > thres:
         loglik_old.append(loglik)
         iter+=1
-        if iter%10==0:
-            print "Iteration: "+str(iter)+"loglik"+str(loglik)
+        print "\n Iteration: "+str(iter)+" loglik "+str(loglik)
+        print gamma
+        print tau
 
         # For each document, estimate local latent variables
         for n in range(N):
             for d in range(D):
                 phi[n,d]=np.exp(scipy.special.digamma(gamma[d])-scipy.special.digamma(np.sum(gamma)))
                 for j in range(K):
-                    phi[n,d] *= np.exp(sender[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(eta[d,:])))
-                    phi[n,d] *= np.exp(receiver[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(eta[d,:])))
+                    phi[n,d] *= np.exp(sender[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(np.sum(eta[d,:]))))
+                    phi[n,d] *= np.exp(receiver[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(np.sum(eta[d,:]))))
                 # Normalize phi
             phi[n,:] /= np.sum(phi[n,:])
             # Update eta
@@ -155,13 +160,17 @@ def network_sym_VI(sender, receiver, D, thres):
         for i in range(D):
             gamma[i]=alpha[i]+np.sum(phi[:,i])
         # Update global parameters(tau, alpha)
+        print 'NR for tau:'
         tau = newton_raphson(tau,np.transpose(eta),D,1,thres)
+        print tau
+        print 'NR for alpha'
         alpha = newton_raphson(alpha,np.reshape(gamma,(D,1)),1,1,thres)
+        print alpha
 
         # check convergence (likelihood)
-        loglik = getloglik(alpha, beta, gamma, phi, w, V)
+        loglik = getloglik(alpha, tau, gamma, eta, phi, sender, receiver)
 
-    return (alpha, beta, gamma, phi, loglik_old)
+    return (alpha, gamma, eta, phi, tau, loglik_old)
 
 if __name__=='__main__':
     print "nothing done"
