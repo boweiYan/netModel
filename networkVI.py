@@ -48,9 +48,16 @@ def ctrigamma(z):
 
     return result
 
-def newton_raphson(alpha,gamma,w,K,stepsize,thres):
-    M = w.shape[0]
-    N = w.shape[1]
+def newton_raphson(alpha,gamma,M,stepsize,thres):
+    '''
+    :param alpha: K-vector
+    :param gamma: should be a K*M matrix, each column corresponds to an item in alpha
+    :param M:
+    :param stepsize:
+    :param thres:
+    :return:
+    '''
+    K = alpha.shape[0]
     g = np.zeros(K)
     h = np.zeros(K)
     alpha_old = alpha
@@ -148,16 +155,9 @@ def network_sym_VI(sender, receiver, D, thres):
         for i in range(D):
             gamma[i]=alpha[i]+np.sum(phi[:,i])
         # Update global parameters(tau, alpha)
+        tau = newton_raphson(tau,np.transpose(eta),D,1,thres)
+        alpha = newton_raphson(alpha,np.reshape(gamma,(D,1)),1,1,thres)
 
-        alpha = newton_raphson(alpha,gamma,w,K,1,thres)
-        for i in range(K):
-            for j in range(V):
-                for d in range(M):
-                    for n in range(N):
-                        beta[i,j] += phi[n,i,d]*(w[d,n]==j)
-            sum_beta = np.sum(beta[i,:])
-            for j in range(V):
-                beta[i,j] = beta[i,j]/sum_beta
         # check convergence (likelihood)
         loglik = getloglik(alpha, beta, gamma, phi, w, V)
 

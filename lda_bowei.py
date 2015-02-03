@@ -47,9 +47,8 @@ def ctrigamma(z):
 
     return result
 
-def newton_raphson(alpha,gamma,w,K,stepsize,thres):
-    M = w.shape[0]
-    N = w.shape[1]
+def newton_raphson(alpha,gamma,M,stepsize,thres):
+    K = alpha.shape[0]
     g = np.zeros(K)
     h = np.zeros(K)
     alpha_old = alpha
@@ -128,7 +127,7 @@ def lda(w,K,V,thres):
                 gamma[i,d]=np.add(alpha[i],np.sum(phi[n,:,d]))
         # Update global parameters
 
-        alpha = newton_raphson(alpha,gamma,w,K,1,thres)
+        alpha = newton_raphson(alpha,gamma,M,N,K,1,thres)
         for i in range(K):
             for j in range(V):
                 for d in range(M):
