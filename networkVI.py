@@ -2,6 +2,7 @@ import numpy as np
 import numpy.random.mtrand
 import scipy.special
 import math
+import prior_sample
 
 def trigamma(x) :
     return ctrigamma(x).real
@@ -98,19 +99,25 @@ def getloglik(alpha, tau, gamma, eta, phi, sender, receiver):
 
     return loglik
 
-def network_sym_VI(w,K,V,thres):
-    # w: word data, numpy array with size M*N; M is No. of documents and N is No. of words in each documents
-    # K: No. of topics
-    # V: Vocabulary
+def network_sym_VI(sender, receiver, D, thres):
+    '''
+    parameter estimate for symmetric link prediction model with variational inference approach
+    :param sender: N*K binary
+    :param receiver: N*K binary
+    :param D: number of clusters
+    :param thres: convergence threshold
+    :return: alpha[D], gamma[D], eta[D*K], phi[N*D], tau[K]
+    '''
 
-    M = w.shape[0]
-    N = w.shape[1]
+    K = sender.shape[1]
+    N = sender.shape[0]
 
-    # Initialization for alpha, beta, gamma, phi
-    alpha = 1./K*np.ones(K)
-    beta = 1./V*np.ones((K,V))
-    gamma = 1./K * np.ones((K,M))
-    phi = 1./K * np.ones((N,K,M))
+    # Initialization
+    alpha = 1./D*np.ones(D)
+    eta = 1./K*np.ones((D,K))
+    gamma = alpha
+    phi = 1./D * np.ones((N,D))
+    tau = 1./K * np.ones(K)
 
     loglik_old = [0]
     loglik = 1
@@ -123,16 +130,24 @@ def network_sym_VI(w,K,V,thres):
             print "Iteration: "+str(iter)+"loglik"+str(loglik)
 
         # For each document, estimate local latent variables
-        for d in range(M):
-            for n in range(N):
-                for i in range(K):
-                    phi[n,i]=beta[i,w[d,n]]*np.exp(scipy.special.digamma(gamma[i]))
+        for n in range(N):
+            for d in range(D):
+                phi[n,d]=np.exp(scipy.special.digamma(gamma[d])-scipy.special.digamma(np.sum(gamma)))
+                for j in range(K):
+                    phi[n,d] *= np.exp(sender[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(eta[d,:])))
+                    phi[n,d] *= np.exp(receiver[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(eta[d,:])))
                 # Normalize phi
-                sum_phi=np.sum(phi[n,:])
-                for i in range(K):
-                    phi[n,i]=phi[n,i]/sum_phi
-                gamma[i,d]=np.add(alpha[i],np.sum(phi[n,:,d]))
-        # Update global parameters
+            phi[n,:] /= np.sum(phi[n,:])
+            # Update eta
+        for d in range(D):
+            for i in range(K):
+                eta[d,i] = tau[i]+np.dot(phi[:,d],sender[:,i]+receiver[:,i])
+            # Normalize eta
+            eta[d,i] /= np.sum(eta[d,:])
+        # update gamma
+        for i in range(D):
+            gamma[i]=alpha[i]+np.sum(phi[:,i])
+        # Update global parameters(tau, alpha)
 
         alpha = newton_raphson(alpha,gamma,w,K,1,thres)
         for i in range(K):
