@@ -60,21 +60,21 @@ def newton_raphson(alpha,gamma,M,stepsize,thres):
     K = alpha.shape[0]
     g = np.zeros(K)
     h = np.zeros(K)
-    alpha_old = alpha
     alpha_new = alpha
-    diff = 10
+    diff = 1e10
     while diff > thres:
         alpha_old = alpha_new
-        z = M*trigamma(np.sum(alpha))
+        z = M*trigamma(np.sum(alpha_old))
         for i in range(K):
-            h[i] = -M*trigamma(alpha[i])
-            g[i] = M*scipy.special.digamma(np.sum(alpha))-M*scipy.special.digamma(alpha[i])
+            h[i] = -M*trigamma(alpha_old[i])
+            g[i] = M*scipy.special.digamma(np.sum(alpha_old))-M*scipy.special.digamma(alpha_old[i])
             for d in range(M):
                 g[i]+=scipy.special.digamma(gamma[i,d])-scipy.special.digamma(np.sum(gamma[:,d]))
 
         c = np.sum(g/h)/(1/z+np.sum(1/h))
         for i in range(K):
             alpha_new[i] = alpha_old[i]-stepsize*(g[i]-c)/h[i]
+
         diff = np.linalg.norm(alpha_new-alpha_old)
 
     return alpha_new
@@ -97,7 +97,7 @@ def getloglik(alpha, tau, gamma, eta, phi, sender, receiver):
             loglik -= np.log(scipy.special.gamma(tau[i]+eps))
             loglik += (tau[i]-1)*(scipy.special.digamma(eta[d,i]+eps)-scipy.special.digamma(np.sum(eta[d,:])))
 
-    loglik -= np.log(scipy.special.gamma(np.sum(gamma)))
+    loglik -= np.log(scipy.special.gamma(np.sum(gamma)+eps))
     for d in range(D):
         loglik += np.log(scipy.special.gamma(gamma[d]+eps))
         loglik -= (gamma[d]-1)*(scipy.special.digamma(gamma[d])-scipy.special.digamma(np.sum(gamma)))
@@ -138,7 +138,6 @@ def network_sym_VI(sender, receiver, D, thres):
         loglik_old.append(loglik)
         iter+=1
         print "\n Iteration: "+str(iter)+" loglik "+str(loglik)
-        print gamma
         print tau
 
         # For each document, estimate local latent variables
@@ -150,6 +149,8 @@ def network_sym_VI(sender, receiver, D, thres):
                     phi[n,d] *= np.exp(receiver[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(np.sum(eta[d,:]))))
                 # Normalize phi
             phi[n,:] /= np.sum(phi[n,:])
+        print 'phi'
+        print phi
             # Update eta
         for d in range(D):
             for i in range(K):
@@ -159,9 +160,12 @@ def network_sym_VI(sender, receiver, D, thres):
         # update gamma
         for i in range(D):
             gamma[i]=alpha[i]+np.sum(phi[:,i])
+        print "gamma"
+        print gamma
+
         # Update global parameters(tau, alpha)
         print 'NR for tau:'
-        tau = newton_raphson(tau,np.transpose(eta),D,1,thres)
+        tau = newton_raphson(tau,np.transpose(eta),D,.1,thres)
         print tau
         print 'NR for alpha'
         alpha = newton_raphson(alpha,np.reshape(gamma,(D,1)),1,1,thres)

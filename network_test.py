@@ -24,6 +24,7 @@ if __name__=='__main__':
     sender, receiver = list2binarymat(links)
 
     print 'begin inference'
+    #TODO: Is it safe to set a D for prior sampling from non-parametric model?
     (alpha, gamma, eta, phi, tau, loglik_old) = networkVI.network_sym_VI(sender, receiver, D=10, thres=0.001)
 
     print (alpha, gamma, tau, loglik_old)
