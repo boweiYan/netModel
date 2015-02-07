@@ -1,52 +1,12 @@
 import numpy as np
 import numpy.random.mtrand
 import scipy.special
+import scipy.optimize
 import math
-import prior_sample
+#import prior_sample
 
 def trigamma(x) :
-    return ctrigamma(x).real
-
-def ctrigamma(z):
-    z = complex(z)
-    g = 607./128.
-    c = (
-        0.99999999999999709182,
-        57.156235665862923517,
-        -59.597960355475491248,
-        14.136097974741747174,
-        -0.49191381609762019978,
-        .33994649984811888699e-4,
-        .46523628927048575665e-4,
-        -.98374475304879564677e-4,
-        .15808870322491248884e-3,
-        -.21026444172410488319e-3,
-        .21743961811521264320e-3,
-        -.16431810653676389022e-3,
-        .84418223983852743293e-4,
-        -.26190838401581408670e-4,
-        .36899182659531622704e-5)
-    t1=0.
-    t2=0.
-    t3=0.
-    for k in range(len(c)-1,0,-1):
-        dz =1./(z+k);
-        dd1 = c[k]* dz
-        t1 += dd1
-        dd2 = dd1 * dz
-        t2 += dd2
-        t3 += dd2 * dz
-
-    t1 += c[0]
-    c =  - (t2*t2)/(t1*t1)  +2*t3/t1
-
-    result = 1./(z*z)
-    gg = z + g + 0.5
-    result += - (z+0.5)/ (gg*gg)
-    result += 2./gg
-    result += c
-
-    return result
+    return scipy.special.polygamma(1,x)
 
 def newton_raphson(alpha,gamma,M,stepsize,thres):
     '''
@@ -110,6 +70,53 @@ def getloglik(alpha, tau, gamma, eta, phi, sender, receiver):
 
     return loglik
 
+def functau(tau,D,eta):
+    k = tau.shape[0]
+    f = np.zeros(k)
+    for i in range(k):
+        f[i]= D*np.log(scipy.special.gamma(np.sum(tau)))-D*np.log(tau[i])
+        for d in range(D):
+            f[i] += (tau[i]-1)*(scipy.special.digamma(eta[d,i])-scipy.special.digamma(np.sum(eta[d,:])))
+    return -np.sum(f)
+
+def dertau(tau,D,eta):
+    n = tau.shape[0]
+    f = np.zeros(n)
+    for i in range(n):
+        f[i] = D*scipy.special.digamma(np.sum(tau))-D*scipy.special.digamma(tau[i])
+        for d in range(D):
+            f[i] += scipy.special.digamma(eta[d,i])-scipy.special.digamma(np.sum(eta[d,:]))
+    return -f
+
+def hesstau(tau,D,eta):
+    n = tau.shape[0]
+    hess = np.ones((n,n))*trigamma(np.sum(tau))*D
+    for i in range(n):
+        hess[i,i] -= D*trigamma(tau[i])
+    return -hess
+
+def funcalpha(alpha,gamma):
+    k = alpha.shape[0]
+    f = np.zeros(k)
+    for i in range(k):
+        f[i]= np.log(scipy.special.gamma(np.sum(alpha)))-np.log(alpha[i])+(alpha[i]-1)*(scipy.special.digamma(gamma[i])-scipy.special.digamma(np.sum(gamma[i])))
+    return -np.sum(f)
+
+def deralpha(alpha,gamma):
+    k = alpha.shape[0]
+    f = np.zeros(k)
+    for i in range(k):
+        f[i] = scipy.special.digamma(np.sum(alpha))-scipy.special.digamma(alpha[i])+scipy.special.digamma(gamma[i])-scipy.special.digamma(np.sum(gamma[i]))
+    return -f
+
+def hessalpha(alpha,gamma):
+    k = alpha.shape[0]
+    hess = np.ones((k,k))*trigamma(np.sum(alpha))
+    for i in range(k):
+        hess[i,i] -= trigamma(alpha[i])
+    return -hess
+
+
 def network_sym_VI(sender, receiver, D, thres):
     '''
     parameter estimate for symmetric link prediction model with variational inference approach
@@ -164,11 +171,16 @@ def network_sym_VI(sender, receiver, D, thres):
         print gamma
 
         # Update global parameters(tau, alpha)
-        print 'NR for tau:'
-        tau = newton_raphson(tau,np.transpose(eta),D,.1,thres)
+        print 'Updating tau:'
+        #tau = newton_raphson(tau,np.transpose(eta),D,.1,thres)
+        res = scipy.optimize.minimize(functau, tau, method="Newton-CG", jac=dertau,hess=hesstau, args=(D,eta))
+        tau = res.x
         print tau
-        print 'NR for alpha'
-        alpha = newton_raphson(alpha,np.reshape(gamma,(D,1)),1,1,thres)
+        print 'Updating alpha'
+        #alpha = newton_raphson(alpha,np.reshape(gamma,(D,1)),1,1,thres)
+        res = scipy.optimize.minimize(funcalpha, alpha, method="Newton-CG", jac=deralpha,hess=hessalpha, args=(gamma))
+        alpha = res.x
+
         print alpha
 
         # check convergence (likelihood)
