@@ -3,6 +3,8 @@ import numpy.random.mtrand
 import scipy.special
 import scipy.optimize
 import math
+import sys
+import pdb
 #import prior_sample
 
 eps = 1e-50
@@ -59,7 +61,7 @@ def getloglik(theta, tau, eta, phi, sender, receiver):
         for i in range(K):
             loglik -= scipy.special.gammaln(tau[i]+eps)
             loglik += (tau[i]-1)*(scipy.special.digamma(eta[d,i]+eps)-scipy.special.digamma(np.sum(eta[d,:])))
-
+            
     for d in range(D):
         loglik -= scipy.special.gammaln(np.sum(eta[d,:])+eps)
         for i in range(K):
@@ -133,7 +135,11 @@ def network_sym_VI(sender, receiver, D, thres):
     # Initialization
     theta = 1./D*np.ones(D)
     eta = 1./K*np.ones((D,K))
+    
     phi = 1./D * np.ones((N,D))
+    phi = np.random.rand(N,D)
+    for n in range(N):
+ 	phi[n,:] = phi[n,:]/np.sum(phi[n,:])
     tau = 1./K * np.ones(K)
 
     loglik_old = [0]
@@ -161,13 +167,19 @@ def network_sym_VI(sender, receiver, D, thres):
         # For each document, estimate local latent variables
         print 'updating phi and eta'
         for n in range(N):
+	    tmp = np.zeros(D)
             for d in range(D):
                 phi[n,d] = theta[d]
                 for j in range(K):
+		    tmp[d] += sender[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(np.sum(eta[d,:])))
                     phi[n,d] *= np.exp(sender[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(np.sum(eta[d,:]))))
                     phi[n,d] *= np.exp(receiver[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(np.sum(eta[d,:]))))
                 # Normalize phi
-            phi[n,:] /= np.sum(phi[n,:])
+            print phi[n,:]
+	    #print tmp
+	    if n==0:
+	    	pdb.set_trace()
+	    phi[n,:] /= np.sum(phi[n,:])
         # print 'phi'
         # print phi
             # Update eta
@@ -178,6 +190,7 @@ def network_sym_VI(sender, receiver, D, thres):
 
         # check convergence (likelihood)
         loglik = getloglik(theta, tau, eta, phi, sender, receiver)
+        sys.stdout.flush()
 
     return (theta, eta, phi, tau, loglik_old)
 
