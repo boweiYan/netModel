@@ -28,6 +28,15 @@ if __name__=='__main__':
     sender, receiver = list2binarymat(links)
 
     print 'begin inference'
-    (alpha, gamma, eta, phi, tau, loglik_old) = networkVI.network_sym_VI(sender, receiver, D, thres=0.001)
+    (theta, eta, phi, tau, loglik_old) = networkVI.network_sym_VI(sender, receiver, D, thres=0.01)
 
     print loglik_old
+    print 'Done. Param:'
+    print 'theta'
+    print theta
+    print 'phi'
+    print phi
+    print 'tau'
+    print tau
+    print 'eta'
+    print eta

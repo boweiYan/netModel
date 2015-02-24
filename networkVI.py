@@ -5,6 +5,7 @@ import scipy.optimize
 import math
 import sys
 import pdb
+import time
 #import prior_sample
 
 eps = 1e-50
@@ -72,52 +73,6 @@ def getloglik(theta, tau, eta, phi, sender, receiver):
 
     return loglik
 
-def functau(tau,D,eta):
-    k = tau.shape[0]
-    f = D*np.log(scipy.special.gamma(np.sum(tau)+eps))
-    for i in range(k):
-        f -= D*np.log(scipy.special.gamma(tau[i]+eps))
-        for d in range(D):
-            f += (tau[i]-1)*(scipy.special.digamma(eta[d,i])-scipy.special.digamma(np.sum(eta[d,:])))
-    return -f
-
-def dertau(tau,D,eta):
-    n = tau.shape[0]
-    f = np.zeros(n)
-    for i in range(n):
-        f[i] = D*scipy.special.digamma(np.sum(tau))-D*scipy.special.digamma(tau[i])
-        for d in range(D):
-            f[i] += scipy.special.digamma(eta[d,i])-scipy.special.digamma(np.sum(eta[d,:]))
-    return -f
-
-def hesstau(tau,D,eta):
-    n = tau.shape[0]
-    hess = np.ones((n,n))*trigamma(np.sum(tau))*D
-    for i in range(n):
-        hess[i,i] -= D*trigamma(tau[i])
-    return -hess
-
-def funcalpha(alpha,gamma):
-    k = alpha.shape[0]
-    f = np.log(scipy.special.gamma(np.sum(alpha)))
-    for i in range(k):
-        f += -np.log(scipy.special.gamma(alpha[i]+eps))+(alpha[i]-1)*(scipy.special.digamma(gamma[i])-scipy.special.digamma(np.sum(gamma[i])))
-    return -f
-
-def deralpha(alpha,gamma):
-    k = alpha.shape[0]
-    f = np.zeros(k)
-    for i in range(k):
-        f[i] = scipy.special.digamma(np.sum(alpha))-scipy.special.digamma(alpha[i])+scipy.special.digamma(gamma[i])-scipy.special.digamma(np.sum(gamma[i]))
-    return -f
-
-def hessalpha(alpha,gamma):
-    k = alpha.shape[0]
-    hess = np.ones((k,k))*trigamma(np.sum(alpha))
-    for i in range(k):
-        hess[i,i] -= trigamma(alpha[i])
-    return -hess
-
 
 def network_sym_VI(sender, receiver, D, thres):
     '''
@@ -136,7 +91,7 @@ def network_sym_VI(sender, receiver, D, thres):
     theta = 1./D*np.ones(D)
     eta = 1./K*np.ones((D,K))
     
-    phi = 1./D * np.ones((N,D))
+    #phi = 1./D * np.ones((N,D))
     phi = np.random.rand(N,D)
     for n in range(N):
  	phi[n,:] = phi[n,:]/np.sum(phi[n,:])
@@ -145,25 +100,24 @@ def network_sym_VI(sender, receiver, D, thres):
     loglik_old = [0]
     loglik = 1
     iter=1
+    '''
+    # Set eta to truth
+    print K
+    for d in range(D):
+        eta[d,:] = np.zeros(K)
+        eta[d,d*(K/D):(d+1)*(K/D)] = np.ones(K/D)
+    '''
     # Iteration until convergence
     while abs(loglik-loglik_old[-1]) > thres:
         loglik_old.append(loglik)
         iter+=1
+        print(time.strftime('%H:%M:%S',time.localtime()))
         print "\n Iteration: "+str(iter)+" loglik "+str(loglik)
 
-                # Update global parameters(tau, alpha)
+        # Update global parameters(tau, alpha)
         print 'Updating tau:'
         tau = newton_raphson(tau, np.transpose(eta), D, .1, thres)
-        # res = scipy.optimize.minimize(functau, tau, method="Newton-CG", jac=dertau, hess=hesstau, args=(D,eta))
-        '''
-        bnds_list = []
-        for i in range(tau.shape[0]):
-            bnds_list.append((0,None))
-        bnds = tuple(bnds_list)
-        print bnds
-        res = scipy.optimize.minimize(functau, tau, method="SLSQP", jac=dertau, args=(D,eta),bounds=bnds)
-        tau = res.x
-        '''
+
         # For each document, estimate local latent variables
         print 'updating phi and eta'
         for n in range(N):
@@ -175,18 +129,15 @@ def network_sym_VI(sender, receiver, D, thres):
                     phi[n,d] *= np.exp(sender[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(np.sum(eta[d,:]))))
                     phi[n,d] *= np.exp(receiver[n,j]*(scipy.special.digamma(eta[d,j])-scipy.special.digamma(np.sum(eta[d,:]))))
                 # Normalize phi
-            print phi[n,:]
-	    #print tmp
-	    if n==0:
-	    	pdb.set_trace()
+            #if n==0:
+	    #	pdb.set_trace()
 	    phi[n,:] /= np.sum(phi[n,:])
-        # print 'phi'
-        # print phi
-            # Update eta
+        # Update eta
+        
         for d in range(D):
             for i in range(K):
                 eta[d,i] = tau[i]+np.dot(phi[:,d],sender[:,i]+receiver[:,i])
-
+        
 
         # check convergence (likelihood)
         loglik = getloglik(theta, tau, eta, phi, sender, receiver)
